@@ -1,0 +1,71 @@
+- name: Install Mysql packages
+  apt:
+    name: "{{ item }}"
+    state: latest
+  loop: "{{ db_packages }}"
+
+- name: mysql's configuration - change bind-address 
+  shell: sed -i -E "s/^bind-address\s*=\s*[0-9.]+/bind-address = 0.0.0.0/g" /etc/mysql/mysql.conf.d/mysqld.cnf
+
+- name:  mysql's configuration - change mysqlx-bind-address 
+  shell: sed -i -E "s/^mysqlx-bind-address\s*=\s*[0-9.]+/mysqlx-bind-address = 0.0.0.0/g" /etc/mysql/mysql.conf.d/mysqld.cnf
+
+- name: mysql's configuration - add log file to config (for replication)
+  shell: echo "server-id=2\nlog-bin=mysql-bin\nbinlog-do-db={{ db_name }}\nreplicate-do-db={{ db_name }}\nrelay-log=mysql-relay-log\nauto-increment-offset = 2" >> /etc/mysql/mysql.conf.d/mysqld.cnf
+
+- name: restart mysql
+  service:
+    name: mysql
+    state: restarted
+
+- name: Cleanup users with same name accounts
+  mysql_user:
+    name: "{{ db_user }}"
+    host_all: yes
+    state: absent
+
+- name: Creater base user
+  mysql_user:
+    name: "{{ db_user }}"
+    password: "{{ db_password }}"
+    priv: '*.*:ALL,GRANT'
+    state: present
+
+- name: Create database
+  shell: mysql -u{{ db_user }} -p{{ db_password }} -e "CREATE DATABASE {{ db_name }};"
+
+- name: Copy database from master
+  ansible.builtin.copy:
+    src: "~/{{ db_name }}.sql"
+    dest: "~/{{ db_name }}.sql"
+  become_user: "{{ common_username }}"
+
+- name: Replicate database from master
+  shell: mysql -u{{ db_user }} -p{{ db_password }} {{ db_name }} < /home/{{ common_username }}/{{ db_name }}.sql
+
+- name: Create user for replication
+  shell: mysql -u{{ db_user }} -p{{ db_password }} -e "CREATE USER '{{ replica_user }}'@'%' IDENTIFIED WITH mysql_native_password BY '{{ password_user_db }}';"
+
+- name: Grant privileges to replication's user
+  shell: mysql -u{{ db_user }} -p{{ db_password }} -e "GRANT REPLICATION SLAVE ON *.* TO '{{ replica_user }}'@'%';"
+
+- name: Create user for monitoring
+  shell: mysql -u{{ db_user }} -p{{ db_password }} -e "CREATE USER 'monitor'@'{{ proxy_SQL_ip }}' IDENTIFIED WITH mysql_native_password by 'monitor';"
+
+- name: Grant privileges to monitoring's user
+  shell: mysql -u{{ db_user }} -p{{ db_password }} -e "GRANT USAGE ON *.* TO 'monitor'@'{{ proxy_SQL_ip }}';"
+
+- name: Create user for proxySQL
+  shell: mysql -u{{ db_user }} -p{{ db_password }} -e "CREATE USER '{{ db_user }}'@'{{ proxy_SQL_ip }}' IDENTIFIED WITH mysql_native_password by '{{ db_password }}';"
+
+- name: Grant privileges to proxySQL's user
+  shell: mysql -u{{ db_user }} -p{{ db_password }} -e " GRANT ALL PRIVILEGES ON *.* TO '{{ db_user }}'@'{{ proxy_SQL_ip }}';"
+
+- name: Stop replica
+  shell: mysql -u{{ db_user }} -p{{ db_password }} -e "STOP SLAVE;"
+
+- name: Change database log file's configuration (for replication)
+  shell: mysql -u{{ db_user }} -p{{ db_password }} -e "CHANGE MASTER TO MASTER_HOST = '{{ master_server_ip }}',MASTER_USER = '{{ replica_user }}', MASTER_PASSWORD = '{{ password_user_db }}', MASTER_LOG_FILE = '{{ bin_log_file_name }}', MASTER_LOG_POS = {{ bin_log_file_pos }};"
+
+- name: Start replica
+  shell: mysql -u{{ db_user }} -p{{ db_password }} -e "START REPLICA;"

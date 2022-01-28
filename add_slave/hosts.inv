@@ -1,0 +1,17 @@
+[dbmaster]
+10.0.0.4
+
+[dbslave]
+10.0.0.6
+
+[dbproxy]
+10.0.0.3
+
+[dbmaster:vars]
+ansible_ssh_common_args='-o StrictHostKeyChecking=no'
+
+[dbslave:vars]
+ansible_ssh_common_args='-o StrictHostKeyChecking=no'
+
+[dbproxy:vars]
+ansible_ssh_common_args='-o StrictHostKeyChecking=no'

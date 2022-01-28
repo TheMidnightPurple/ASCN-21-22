@@ -1,0 +1,9 @@
+---
+#DB settings
+db_packages:
+  - mysql-server
+  - python3-mysqldb
+
+ip_master_anterior: "{{ lookup('file', '~/ip.txt') }}"
+bin_log_file_name: "{{ lookup('file', '~/name.txt') }}"
+bin_log_file_pos: "{{ lookup('file', '~/pos.txt') }}"

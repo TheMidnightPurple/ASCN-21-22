@@ -1,0 +1,48 @@
+
+- name: Get actual DataBase
+  shell: mysqldump -u{{ db_user }} -p{{ db_password }} {{ db_name }} > {{ db_name }}.sql
+  become_user: "{{ common_username }}"
+
+- name: SHOW MASTER STATUS
+  shell: mysql -u{{ db_user }} -p{{ db_password }} -e "SHOW MASTER STATUS;" > temp.txt
+  become_user: "{{ common_username }}"
+
+- name: get IP
+  shell: echo "{{ ansible_ssh_host }}" > ip.txt
+  become_user: "{{ common_username }}"
+
+- name: get name from log file (for replication)
+  shell: grep -oP '[a-zA-Z\-]+\.\d+' temp.txt > name.txt 
+  become_user: "{{ common_username }}"
+
+- name: get position from log file (for replication)
+  shell: grep -oP '\s+\K(\d+)' temp.txt > pos.txt
+  become_user: "{{ common_username }}"
+
+- name: export name from log file (for replication)
+  fetch:
+    src: ~/name.txt
+    dest: ~/
+    flat: yes
+  become_user: "{{ common_username }}"
+
+- name: export position from log file (for replication)
+  fetch:
+    src: ~/pos.txt
+    dest: ~/
+    flat: yes
+  become_user: "{{ common_username }}"
+
+- name: export ip from log file (for replication).
+  fetch:
+    src: ~/ip.txt
+    dest: ~/
+    flat: yes
+  become_user: "{{ common_username }}"
+
+- name: export database from log file (for replication).
+  fetch:
+    src: ~/{{ db_name }}.sql
+    dest: ~/
+    flat: yes
+  become_user: "{{ common_username }}"

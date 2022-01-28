@@ -1,0 +1,59 @@
+- name: Install Mysql packages
+  apt:
+    name: "{{ item }}"
+    state: latest
+  loop: "{{ db_packages }}"
+
+- name: bind-address 
+  shell: sed -i -E "s/^bind-address\s*=\s*[0-9.]+/bind-address = 0.0.0.0/g" /etc/mysql/mysql.conf.d/mysqld.cnf
+
+- name: mysqlx-bind-address 
+  shell: sed -i -E "s/^mysqlx-bind-address\s*=\s*[0-9.]+/mysqlx-bind-address = 0.0.0.0/g" /etc/mysql/mysql.conf.d/mysqld.cnf
+
+- name: Add ficheiro
+  shell: echo "server-id=2\nlog-bin=mysql-bin\nbinlog-do-db={{ db_name }}\nreplicate-do-db={{ db_name }}\nrelay-log=mysql-relay-log\nauto-increment-offset = 2" >> /etc/mysql/mysql.conf.d/mysqld.cnf
+
+- name: restart mysql
+  service:
+    name: mysql
+    state: restarted
+
+- name: Cleanup users with same name accounts
+  mysql_user:
+    name: "{{ db_user }}"
+    host_all: yes
+    state: absent
+
+- name: Criar Usuario base
+  mysql_user:
+    name: "{{ db_user }}"
+    password: "{{ db_password }}"
+    priv: '*.*:ALL,GRANT'
+    state: present
+
+- name: Criar Usuario para replicação
+  shell: mysql -u{{ db_user }} -p{{ db_password }} -e "CREATE USER '{{ replica_user }}'@'%' IDENTIFIED WITH mysql_native_password BY '{{ password_user_db }}';"
+
+- name: privilegios usuario da replicação
+  shell: mysql -u{{ db_user }} -p{{ db_password }} -e "GRANT REPLICATION SLAVE ON *.* TO '{{ replica_user }}'@'%';"
+
+- name: Criar Usuario para monitorização
+  shell: mysql -u{{ db_user }} -p{{ db_password }} -e "CREATE USER 'monitor'@'{{ proxy_SQL_ip }}' IDENTIFIED WITH mysql_native_password by 'monitor';"
+
+- name: privilegios usuario da monitorização
+  shell: mysql -u{{ db_user }} -p{{ db_password }} -e "GRANT USAGE ON *.* TO 'monitor'@'{{ proxy_SQL_ip }}';"
+
+- name: Criar Usuario para o proxy
+  shell: mysql -u{{ db_user }} -p{{ db_password }} -e "CREATE USER '{{ db_user }}'@'{{ proxy_SQL_ip }}' IDENTIFIED WITH mysql_native_password by '{{ db_password }}';"
+
+- name: privilegios usuario do proxy
+  shell: mysql -u{{ db_user }} -p{{ db_password }} -e " GRANT ALL PRIVILEGES ON *.* TO '{{ db_user }}'@'{{ proxy_SQL_ip }}';"
+
+- name: stop replica
+  shell: mysql -u{{ db_user }} -p{{ db_password }} -e "STOP SLAVE;"
+
+- name: Indica pos e master file name
+  shell: mysql -u{{ db_user }} -p{{ db_password }} -e "CHANGE MASTER TO MASTER_HOST = '{{ master_server_ip }}',MASTER_USER = '{{ replica_user }}', MASTER_PASSWORD = '{{ password_user_db }}', MASTER_LOG_FILE = '{{ bin_log_file_name }}', MASTER_LOG_POS = {{ bin_log_file_pos }};"
+
+- name: start replica
+  shell: mysql -u{{ db_user }} -p{{ db_password }} -e "START REPLICA;"

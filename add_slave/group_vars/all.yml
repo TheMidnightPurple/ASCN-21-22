@@ -1,0 +1,23 @@
+common_username: vagrant
+
+db_name: wiki 
+
+db_user: user_root
+db_password: wikijsrocks
+
+db_user_proxy: userProxy
+db_password_proxy: wikijsrocks
+
+net_work_docker_name: wiki_net
+container_db_name: mysql_wiki
+
+replica_user: user
+password_user_db: wikijsrocks
+
+
+master_server_ip: "10.0.0.4"
+
+ip_db_slave:
+  - "10.0.0.6"
+
+proxy_SQL_ip: "10.0.0.3"

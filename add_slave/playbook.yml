@@ -1,0 +1,32 @@
+
+- name: get Master status
+  hosts: dbmaster
+  become: yes
+  roles:
+    - db_master
+  tags:
+    - dbmasterinstall
+
+- name: DB-slave install and start
+  hosts: dbslave
+  become: yes
+  roles:
+    - db_slaves
+  tags:
+    - dbslaveinstall
+
+- name: add slave to proxySQL
+  hosts: dbproxy
+  become: yes
+  roles:
+    - proxyMYSQL
+  tags:
+    - proxySQLinstall
+
+- name: Install agent
+  hosts: dbslave
+  become: yes
+  roles:
+    - agente
+  tags:
+    - agenteinstall

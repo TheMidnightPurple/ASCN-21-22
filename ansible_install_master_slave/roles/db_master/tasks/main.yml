@@ -1,0 +1,88 @@
+---
+- name: Install Mysql packages
+  apt:
+    name: "{{ item }}"
+    state: latest
+  loop: "{{ db_packages }}"
+
+- name: mysql's configuration - change bind-address
+  shell: sed -i -E "s/^bind-address\s*=\s*[0-9.]+/bind-address = {{ master_server_ip }}/g" /etc/mysql/mysql.conf.d/mysqld.cnf
+
+- name: mysql's configuration - change mysqlx-bind-address
+  shell: sed -i -E "s/^mysqlx-bind-address\s*=\s*[0-9.]+/mysqlx-bind-address = {{ master_server_ip }}/g" /etc/mysql/mysql.conf.d/mysqld.cnf
+
+- name: mysql's configuration to master - add log file to config (for replication)
+  shell: echo "server-id=1\nlog-bin=mysql-bin\nbinlog-do-db={{ db_name }}" >> /etc/mysql/mysql.conf.d/mysqld.cnf
+
+- name: restart mysql
+  service:
+    name: mysql
+    state: restarted
+
+- name: Cleanup users with same name accounts
+  mysql_user:
+    name: "{{ replica_user }}"
+    host_all: yes
+    state: absent
+
+- name: Creater base user
+  mysql_user:
+    name: "{{ db_user }}"
+    password: "{{ db_password }}"
+    priv: '*.*:ALL,GRANT'
+    state: present
+
+- name: Create user for replication
+  shell: mysql -u{{ db_user }} -p{{ db_password }} -e "CREATE USER '{{ replica_user }}'@'%' IDENTIFIED WITH mysql_native_password BY '{{ password_user_db }}';"
+
+- name: Grant privileges to replication's user
+  shell: mysql -u{{ db_user }} -p{{ db_password }} -e "GRANT REPLICATION SLAVE ON *.* TO '{{ replica_user }}'@'%';"
+
+- name: Create user for monitoring
+  shell: mysql -u{{ db_user }} -p{{ db_password }} -e "CREATE USER 'monitor'@'{{ proxy_SQL_ip }}' IDENTIFIED WITH mysql_native_password by 'monitor';"
+
+- name: Grant privileges to monitoring's user
+  shell: mysql -u{{ db_user }} -p{{ db_password }} -e "GRANT USAGE ON *.* TO 'monitor'@'{{ proxy_SQL_ip }}';"
+
+- name: Create user for proxySQL
+  shell: mysql -u{{ db_user }} -p{{ db_password }} -e "CREATE USER '{{ db_user }}'@'{{ proxy_SQL_ip }}' IDENTIFIED WITH mysql_native_password by '{{ db_password }}';"
+
+- name: Grant privileges to proxySQL's user
+  shell: mysql -u{{ db_user }} -p{{ db_password }} -e " GRANT ALL PRIVILEGES ON *.* TO '{{ db_user }}'@'{{ proxy_SQL_ip }}';"
+
+- name: SHOW MASTER STATUS
+  shell: mysql -u{{ db_user }} -p{{ db_password }} -e "SHOW MASTER STATUS;" > temp.txt
+  become_user: "{{ common_username }}"
+
+- name: get IP
+  shell: echo "{{ ansible_ssh_host }}" > ip.txt
+  become_user: "{{ common_username }}"
+
+- name: get name from log file (for replication)
+  shell: grep -oP '[a-zA-Z\-]+\.\d+' temp.txt > name.txt 
+  become_user: "{{ common_username }}"
+
+- name: get position from log file (for replication)
+  shell: grep -oP '\s+\K(\d+)' temp.txt > pos.txt
+  become_user: "{{ common_username }}"
+
+- name: export name from log file (for replication)
+  fetch:
+    src: ~/name.txt
+    dest: ~/
+    flat: yes
+  become_user: "{{ common_username }}"
+
+- name: export position from log file (for replication)
+  fetch:
+    src: ~/pos.txt
+    dest: ~/
+    flat: yes
+  become_user: "{{ common_username }}"
+
+- name: export IP
+  fetch:
+    src: ~/ip.txt
+    dest: ~/
+    flat: yes
+  become_user: "{{ common_username }}"

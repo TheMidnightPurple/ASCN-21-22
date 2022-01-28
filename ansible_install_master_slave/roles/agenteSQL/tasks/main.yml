@@ -1,0 +1,10 @@
+- name: Install Google Cloud Cloud Monitoring agent SQL
+  shell: apt-get install libmysqlclient21
+
+- name: Create config file to Google Cloud Cloud Monitoring agent SQL
+  template:
+    src: "mysql.conf"
+    dest: "/etc/stackdriver/collectd.d/mysql.conf"
+
+- name: Restart agent Google Cloud Cloud Monitoring agent SQL
+  shell: service stackdriver-agent restart

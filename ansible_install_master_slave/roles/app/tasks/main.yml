@@ -1,0 +1,22 @@
+- name: Pull Wiki Docker Image
+  docker_image:
+    name: requarks/wiki
+    source: pull
+
+- name: Start Wiki JS
+  docker_container:
+    name: wiki
+    image: requarks/wiki
+    state: started
+    restart_policy: unless-stopped
+    networks:
+      - name: "{{ net_work_docker_name }}"
+    ports:
+      - "8080:3000"
+    env:
+      DB_TYPE: mysql
+      DB_HOST: "{{ proxy_SQL_ip }}" 
+      DB_PORT: "16033"
+      DB_USER: "{{ db_user }}"
+      DB_PASS: "{{ db_password }}"
+      DB_NAME: "{{ db_name }}"   

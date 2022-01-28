@@ -1,0 +1,68 @@
+- name: Install Mysql packages
+  apt:
+    name: "{{ item }}"
+    state: latest
+  loop: "{{ db_packages }}"
+
+- name: Pull proxySQL Docker image
+  docker_image:
+    name: proxysql/proxysql
+    source: pull
+
+#- name: pull proxy
+#  shell: docker pull proxysql/proxysql
+
+- name: Create proxy configuration file
+  template: src=proxysql.cnf dest=~/proxysql.cnf
+  become_user: "{{ common_username }}"
+
+- name: Run PorxySQL
+  docker_container:
+    name: proxySQL
+    image: proxysql/proxysql
+    state: started
+    restart_policy: unless-stopped
+    networks:
+      - name: "{{ net_work_docker_name }}"
+    volumes:
+      - /home/{{ common_username }}/proxysql.cnf:/etc/proxysql.cnf
+    ports:
+      - "16032:6032"
+      - "16033:6033"
+      - "16070:6070"
+
+- name: wait proxy
+  shell: sleep 5
+
+- name: add readers
+  shell: mysql -uradmin -pradmin -h 127.0.0.1 -P16032 -e "INSERT INTO mysql_servers(hostgroup_id, hostname, port, weight) VALUES (0,'{{ item }}',3306,10);"
+  loop: "{{ ip_db_slave }}"
+  ignore_errors: yes 
+
+- name: add writers
+  shell: mysql -uradmin -pradmin -h 127.0.0.1 -P16032 -e "INSERT INTO mysql_servers(hostgroup_id, hostname, port) VALUES (1,'{{ master_server_ip }}',3306);"
+
+- name: add master como reader com peso mais baixo
+  shell: mysql -uradmin -pradmin -h 127.0.0.1 -P16032 -e "INSERT INTO mysql_servers(hostgroup_id, hostname, port, weight) VALUES (0,'{{ master_server_ip }}',3306,1);"
+
+- name: set readrs and writers
+  shell: mysql -uradmin -pradmin -h 127.0.0.1 -P16032 -e "LOAD MYSQL SERVERS TO RUNTIME; SAVE MYSQL SERVERS TO DISK;"
+
+- name: privilegios usuario do proxy
+  shell: mysql -uradmin -pradmin -h 127.0.0.1 -P16032 -e "UPDATE global_variables SET variable_value='monitor'  WHERE variable_name='mysql-monitor_username'; LOAD MYSQL VARIABLES TO RUNTIME; SAVE MYSQL VARIABLES TO DISK;"
+
+- name: privilegios usuario do proxy
+  shell: mysql -uradmin -pradmin -h 127.0.0.1 -P16032 -e "LOAD MYSQL SERVERS TO RUNTIME;"
+
+- name: regras de seleçao para escolha de reads e writes 
+  shell: mysql -uradmin -pradmin -h 127.0.0.1 -P16032 -e "{{ item }}"
+  loop: "{{ query_rules_proxy }}"
+
+- name: set regras
+  shell: mysql -uradmin -pradmin -h 127.0.0.1 -P16032 -e "LOAD MYSQL QUERY RULES TO RUNTIME; SAVE MYSQL QUERY RULES TO DISK;"
+
+- name: privilegios usuario do proxy
+  shell: mysql -uradmin -pradmin -h 127.0.0.1 -P16032 -e "INSERT INTO mysql_users (username,password) VALUES ('{{ db_user }}','{{ db_password }}');"
+
+- name: privilegios usuario do proxy
+  shell: mysql -uradmin -pradmin -h 127.0.0.1 -P16032 -e "LOAD MYSQL USERS TO RUNTIME; SAVE MYSQL USERS TO DISK;"

@@ -1,0 +1,77 @@
+ 
+- name: DB-master install and start
+  hosts: dbmaster
+  become: yes
+  roles:
+    - db_master
+  tags:
+    - dbmasterinstall
+
+- name: DB-slave install and start
+  hosts: dbslave
+  become: yes
+  roles:
+    - db_slaves
+  tags:
+    - dbslaveinstall
+
+- name: DB-master -> create Database and Configure
+  hosts: dbmaster
+  become: yes
+  roles:
+    - db_master_parte3
+  tags:
+    - dbmasterinstall
+
+- name: Docker installation
+  hosts: 
+    - proxy
+    - app
+    - dbproxy
+  become: yes
+  roles:
+    - docker
+  tags:
+    - dockerinstall
+
+- name: Install ProxySQL and start
+  hosts: dbproxy
+  become: yes
+  roles:
+    - proxyMYSQL
+  tags:
+    - proxySQLinstall
+
+- name: Wiki.js install and deploy
+  hosts: app
+  become: yes
+  roles:
+    - app
+  tags:
+    - appinstall
+
+- name: Reverse proxy setup
+  hosts: proxy
+  become: yes
+  roles:
+    - proxy
+  tags:
+    - proxyinstall
+
+- name: Install agent
+  hosts: all
+  become: yes
+  roles:
+    - agente
+  tags:
+    - agenteinstall
+
+- name: Install mysql agent
+  hosts: 
+    - dbmaster
+    - dbslave
+  become: yes
+  roles:
+    - agenteSQL
+  tags:
+    - agenteSQLinstall

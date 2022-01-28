@@ -1,0 +1,9 @@
+- name: Get Google Cloud Cloud Monitoring agent
+  shell: curl -sSO https://dl.google.com/cloudagents/add-monitoring-agent-repo.sh
+  become_user: "{{ common_username }}"
+
+- name: Install Google Cloud Cloud Monitoring agent
+  shell: bash add-monitoring-agent-repo.sh --also-install
+
+- name: Restart Google Cloud Cloud Monitoring agent
+  shell: service stackdriver-agent restart

@@ -1,0 +1,12 @@
+
+- name: Create database Wiki
+  shell: mysql -u{{ db_user }} -p{{ db_password }} -e "CREATE DATABASE {{ db_name }};"
+
+- name: Start configure database Wiki
+  ansible.builtin.copy:
+    src: "{{ inventory_dir }}/roles/db_master_parte3/templates/wiki.sql"
+    dest: ~/wiki.sql
+  become_user: "{{ common_username }}"
+
+- name: Finish configure database Wiki
+  shell: mysql -u{{ db_user }} -p{{ db_password }} {{ db_name }} < /home/{{ common_username }}/wiki.sql

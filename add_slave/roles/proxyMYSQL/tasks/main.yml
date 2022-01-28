@@ -1,0 +1,7 @@
+
+- name: Add new reader to proxySQL
+  shell: mysql -uradmin -pradmin -h 127.0.0.1 -P16032 -e "INSERT INTO mysql_servers(hostgroup_id, hostname, port) VALUES (0,'{{ item }}',3306);"
+  loop: "{{ ip_db_slave }}"
+
+- name: Set readers on proxySQL
+  shell: mysql -uradmin -pradmin -h 127.0.0.1 -P16032 -e "LOAD MYSQL SERVERS TO RUNTIME; SAVE MYSQL SERVERS TO DISK;"
